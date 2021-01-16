@@ -13,7 +13,9 @@ import edu.wpi.first.wpilibj.SpeedController;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
-
+import com.ctre.phoenix.motorcontrol.Faults;
+import com.ctre.phoenix.motorcontrol.InvertType;
+import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 /**
  * This is a demo program showing the use of the RobotDrive class, specifically
  * it contains the code necessary to operate a robot with tank drive.
@@ -21,12 +23,12 @@ import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 public class Robot extends TimedRobot {
   private Joystick m_leftStick;
   private Joystick m_rightStick;
-  private  SpeedController m_frontLeft = new Talon(1);
-  private SpeedController m_rearLeft = new Talon(2);
+  private  SpeedController m_frontLeft = new WPI_TalonSRX(5);
+  private SpeedController m_rearLeft = new WPI_TalonSRX(6);
   private  SpeedControllerGroup m_left = new SpeedControllerGroup(m_frontLeft, m_rearLeft);
   
-  private  SpeedController m_frontRight = new Talon(3);
-  private  SpeedController m_rearRight = new Talon(4);
+  private  SpeedController m_frontRight = new WPI_TalonSRX(1);
+  private  SpeedController m_rearRight = new WPI_TalonSRX(8);
   private  SpeedControllerGroup m_right = new SpeedControllerGroup(m_frontRight, m_rearRight);
    
   private   DifferentialDrive m_myRobot = new DifferentialDrive(m_left, m_right);
