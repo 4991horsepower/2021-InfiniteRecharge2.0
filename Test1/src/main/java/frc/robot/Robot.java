@@ -7,42 +7,61 @@
 
 package frc.robot;
 
-import edu.wpi.first.wpilibj.Joystick;
-import edu.wpi.first.wpilibj.Talon;
-import edu.wpi.first.wpilibj.SpeedController;
-import edu.wpi.first.wpilibj.SpeedControllerGroup;
+import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.wpilibj.drive.DifferentialDrive;
-import com.ctre.phoenix.motorcontrol.Faults;
-import com.ctre.phoenix.motorcontrol.InvertType;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
+
 /**
  * This is a demo program showing the use of the RobotDrive class, specifically
  * it contains the code necessary to operate a robot with tank drive.
  */
 public class Robot extends TimedRobot {
-  private Joystick m_leftStick;
-  private Joystick m_rightStick;
-  private  SpeedController m_frontLeft = new WPI_TalonSRX(5);
-  private SpeedController m_rearLeft = new WPI_TalonSRX(6);
-  private  SpeedControllerGroup m_left = new SpeedControllerGroup(m_frontLeft, m_rearLeft);
+  private XboxController m_gamePad;
+  private WPI_TalonSRX m_frontLeft = new WPI_TalonSRX(5);
+  private WPI_TalonSRX m_rearLeft = new WPI_TalonSRX(6);
   
-  private  SpeedController m_frontRight = new WPI_TalonSRX(1);
-  private  SpeedController m_rearRight = new WPI_TalonSRX(8);
-  private  SpeedControllerGroup m_right = new SpeedControllerGroup(m_frontRight, m_rearRight);
+  private  WPI_TalonSRX m_frontRight = new WPI_TalonSRX(1);
+  private  WPI_TalonSRX m_rearRight = new WPI_TalonSRX(8);
    
-  private   DifferentialDrive m_myRobot = new DifferentialDrive(m_left, m_right);
+  //private  ArcadeDrive m_myRobot = new ArcadeDrive(m_frontLeft, m_frontRight);
 
   @Override
   public void robotInit() {
    // m_myRobot = new DifferentialDrive(new Talon(0), new Talon(1));
-    m_leftStick = new Joystick(0);
-    m_rightStick = new Joystick(1);
-      
+    m_gamePad = new XboxController(0);
+
+    m_rearLeft.setInverted(true);
+    m_rearRight.setInverted(true);
+    m_frontLeft.setInverted(true);
+    m_frontRight.setInverted(true);
+
+    m_rearLeft.follow(m_frontLeft);
+    m_rearRight.follow(m_frontRight);
   }
 
   @Override
   public void teleopPeriodic() {
-    m_myRobot.tankDrive(m_leftStick.getY(), m_rightStick.getY());
+    //m_myRobot.tankDrive(m_gamePad.getY(Hand.kLeft), m_gamePad.getY(Hand.kRight));
+    
+    double reverse = m_gamePad.getTriggerAxis(Hand.kLeft);
+    double front_back = reverse < 0.1 ? m_gamePad.getTriggerAxis(Hand.kRight) : -m_gamePad.getTriggerAxis(Hand.kRight);
+    double left_right = m_gamePad.getX(Hand.kLeft);
+
+
+    left_right = left_right > 0 ? Math.pow(left_right, 2) : -Math.pow(left_right, 2);
+    
+
+    double left = -front_back - left_right;
+    double right = front_back - left_right;
+
+    if(Math.abs(left) < 0.1)
+      left = 0;
+    if(Math.abs(right) < 0.1)
+      right = 0;
+
+    m_frontRight.set(right);
+    m_frontLeft.set(left);
+  
   }
 }
