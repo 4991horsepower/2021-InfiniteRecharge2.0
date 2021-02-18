@@ -118,6 +118,6 @@ public class LimeLight {
 			table = NetworkTableInstance.getDefault();
 		}
 
-		return table.getTable("limelight").getEntry(key);
+		return table.getTable("limelight-leo").getEntry(key);
 	}
 }

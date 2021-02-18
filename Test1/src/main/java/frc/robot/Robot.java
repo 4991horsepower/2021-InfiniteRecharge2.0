@@ -34,13 +34,21 @@ public class Robot extends TimedRobot {
   // Spinner
   private WPI_TalonSRX m_spinner = new WPI_TalonSRX(3);
 
+  //Wheel to load ball
+
+  private WPI_TalonSRX m_wheel = new WPI_TalonSRX(4);
+
   // Shooter
   private CANSparkMax m_leftShooter = new CANSparkMax(12, MotorType.kBrushless);
   private CANSparkMax m_rightShooter = new CANSparkMax(9, MotorType.kBrushless);
+  private CANSparkMax m_turretMotor = new CANSparkMax(10, MotorType.kBrushless);
+  private boolean wheelPrev = false; 
+  private boolean wheelState = false;
+
+  private LimeLight camera;
 
 
-  //private LimeLight camera;
-  private Compressor c = new Compressor(0);
+ private Compressor c = new Compressor(0);
   private boolean intakeSwitchPrev = false;
   private boolean intakeState = true;
   private Solenoid intake_in = new Solenoid(2);
@@ -60,6 +68,7 @@ public class Robot extends TimedRobot {
     m_frontLeft.setInverted(true);
     m_frontRight.setInverted(true);
 
+
     // Defaults to drift on neutral, this sets brake mode
     //m_rearLeft.setNeutralMode(NeutralMode.Brake);
     //m_rearRight.setNeutralMode(NeutralMode.Brake);
@@ -69,6 +78,8 @@ public class Robot extends TimedRobot {
 
     m_rearLeft.follow(m_frontLeft);
     m_rearRight.follow(m_frontRight);
+
+    m_rightShooter.follow(m_leftShooter, true);
 
     c.setClosedLoopControl(true);
   }
@@ -96,6 +107,27 @@ public class Robot extends TimedRobot {
 
     m_frontRight.set(right);
     m_frontLeft.set(left);
+
+    if (m_gamePad.getBumperPressed(Hand.kLeft)==true && wheelPrev==false)
+    {
+
+      wheelState = !wheelState;
+    }
+    
+    wheelPrev = m_gamePad.getBumperPressed(Hand.kLeft);
+    
+    if(wheelState == true)
+    {
+      m_leftShooter.set(-0.5);
+    }
+    else
+    {
+      m_leftShooter.set(0);
+    }
+    
+    //m_rightShooter.set(1);
+    
+    //m_rightShooter.set(0);
 
     if(m_gamePad.getYButton())
     {
@@ -128,6 +160,51 @@ public class Robot extends TimedRobot {
     {
       m_spinner.set(0);
     }
+
+    if(m_gamePad.getAButton())
+    {
+      m_wheel.set(-1);
+    }
+    else
+    {
+      m_wheel.set(0);
+    }
+
+    double turretSpeed = m_gamePad.getX(Hand.kRight);
+
+    if(Math.abs(turretSpeed) > 0.1)
+    {
+      m_turretMotor.set(turretSpeed/5);
+      System.out.println("Manual Mode");
+    }
+    else
+    {
+        boolean camTarget = camera.isTarget();
+        double camSpeed;
+        if(camTarget == true)
+        {
+          camSpeed = camera.getTx() * 0.01;
+          System.out.println("Camspeed: " + camSpeed);
+        }
+        else
+        {
+          System.out.println("No target detected");
+          camSpeed = 0;
+        }
+         
+        if(camSpeed > .2)
+        {
+          camSpeed = .2;
+        }
+        else if(camSpeed < -.2)
+        {
+          camSpeed = -.2;
+        }
+        m_turretMotor.set(-camSpeed);
+    }
+    
+     
+     
   }
 
 
