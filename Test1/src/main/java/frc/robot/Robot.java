@@ -20,7 +20,9 @@ import com.revrobotics.CANSparkMaxLowLevel.MotorType;
  * it contains the code necessary to operate a robot with tank drive.
  */
 public class Robot extends TimedRobot {
-  private XboxController m_gamePad;
+  private XboxController m_driverController;
+  private XboxController m_copilotController;
+
 
   // Drive Base
   private WPI_TalonSRX m_frontLeft = new WPI_TalonSRX(5);
@@ -61,7 +63,9 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotInit() {
-    m_gamePad = new XboxController(0);
+    m_driverController = new XboxController(0);
+    m_copilotController = new XboxController(1);
+
 
     m_rearLeft.setInverted(true);
     m_rearRight.setInverted(true);
@@ -86,12 +90,12 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopPeriodic() {
-    //m_myRobot.tankDrive(m_gamePad.getY(Hand.kLeft), m_gamePad.getY(Hand.kRight));
+    //m_myRobot.tankDrive(m_driverController.getY(Hand.kLeft), m_driverController.getY(Hand.kRight));
     
-    double reverse = m_gamePad.getTriggerAxis(Hand.kLeft);
-    double forward = m_gamePad.getTriggerAxis(Hand.kRight);
+    double reverse = m_driverController.getTriggerAxis(Hand.kLeft);
+    double forward = m_driverController.getTriggerAxis(Hand.kRight);
     double front_back = reverse < 0.1 ? forward : -reverse;
-    double left_right = m_gamePad.getX(Hand.kLeft);
+    double left_right = m_driverController.getX(Hand.kLeft);
 
 
     left_right = left_right > 0 ? 0.5*Math.pow(Math.abs(left_right), 3) : -0.5*Math.pow(Math.abs(left_right), 3);
@@ -108,13 +112,13 @@ public class Robot extends TimedRobot {
     m_frontRight.set(right);
     m_frontLeft.set(left);
 
-    if (m_gamePad.getBumperPressed(Hand.kLeft)==true && wheelPrev==false)
+    if (m_copilotController.getBumperPressed(Hand.kLeft)==true && wheelPrev==false)
     {
 
       wheelState = !wheelState;
     }
     
-    wheelPrev = m_gamePad.getBumperPressed(Hand.kLeft);
+    wheelPrev = m_copilotController.getBumperPressed(Hand.kLeft);
     
     if(wheelState == true)
     {
@@ -129,7 +133,7 @@ public class Robot extends TimedRobot {
     
     //m_rightShooter.set(0);
 
-    if(m_gamePad.getYButton())
+    if(m_copilotController.getYButton())
     {
       m_intake.set(-1);
     }
@@ -138,20 +142,20 @@ public class Robot extends TimedRobot {
       m_intake.set(0);
     }
 
-    if(m_gamePad.getXButton()==true && intakeSwitchPrev == false)
+    if(m_copilotController.getXButton()==true && intakeSwitchPrev == false)
     {
         intakeState = !intakeState;
     }
-    intakeSwitchPrev = m_gamePad.getXButton();
+    intakeSwitchPrev = m_copilotController.getXButton();
     intake_in.set(intakeState);
     intake_out.set(!intakeState);
 
     //when B is pressed inner motor spins 
-    if(m_gamePad.getBButton()==true && motorSwitchPrev == false)
+    if(m_copilotController.getBButton()==true && motorSwitchPrev == false)
     {
         motorState = !motorState;
     }
-    motorSwitchPrev = m_gamePad.getBButton();
+    motorSwitchPrev = m_copilotController.getBButton();
     if(motorState)
     {
       m_spinner.set(-1);
@@ -161,7 +165,7 @@ public class Robot extends TimedRobot {
       m_spinner.set(0);
     }
 
-    if(m_gamePad.getAButton())
+    if(m_copilotController.getAButton())
     {
       m_wheel.set(-1);
     }
@@ -170,7 +174,7 @@ public class Robot extends TimedRobot {
       m_wheel.set(0);
     }
 
-    double turretSpeed = m_gamePad.getX(Hand.kRight);
+    double turretSpeed = m_copilotController.getX(Hand.kRight);
 
     if(Math.abs(turretSpeed) > 0.1)
     {
