@@ -8,12 +8,16 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.Solenoid;
+import edu.wpi.first.wpilibj.Servo;
 
 import com.kauailabs.navx.frc.AHRS;
 import edu.wpi.first.wpilibj.SPI;
 
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
+
+import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
+import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
 
 /**
  * This is a demo program showing the use of the RobotDrive class, specifically
@@ -23,6 +27,11 @@ public class Robot extends TimedRobot {
   private XboxController m_driverController;
   private XboxController m_copilotController;
 
+  private double cam_y[] = {-16.9921, -13.0028, -11.3832, -8.30721, -4.7067, 0.92128, 9.3866};
+  private double cam_angles[] = {62.7953, 32.4803, 49.3701, 49.3701, 50.2362, 50.2362, 47.6378};
+
+  private LinearInterpolator interp = new LinearInterpolator();
+  private PolynomialSplineFunction polySpline;
 
   // Drive Base
   private WPI_TalonSRX m_frontLeft = new WPI_TalonSRX(5);
@@ -49,6 +58,7 @@ public class Robot extends TimedRobot {
 
   private LimeLight camera;
 
+  private Servo hoodServo = new Servo(2);
 
  private Compressor c = new Compressor(0);
   private boolean intakeSwitchPrev = false;
@@ -86,7 +96,10 @@ public class Robot extends TimedRobot {
     m_rightShooter.follow(m_leftShooter, true);
 
     c.setClosedLoopControl(true);
+
+    polySpline = interp.interpolate(cam_y, cam_angles);
   }
+  
 
   @Override
   public void teleopPeriodic() {
@@ -133,14 +146,7 @@ public class Robot extends TimedRobot {
     
     //m_rightShooter.set(0);
 
-    if(m_copilotController.getYButton())
-    {
-      m_intake.set(-1);
-    }
-    else 
-    {
-      m_intake.set(0);
-    }
+    
 
     if(m_copilotController.getXButton()==true && intakeSwitchPrev == false)
     {
@@ -150,13 +156,16 @@ public class Robot extends TimedRobot {
     intake_in.set(intakeState);
     intake_out.set(!intakeState);
 
-    //when B is pressed inner motor spins 
-    if(m_copilotController.getBButton()==true && motorSwitchPrev == false)
+    if(intakeState == false)
     {
-        motorState = !motorState;
+      m_intake.set(-1);
     }
-    motorSwitchPrev = m_copilotController.getBButton();
-    if(motorState)
+    else 
+    {
+      m_intake.set(0);
+    }
+
+    if(intakeState == false || wheelState == true)
     {
       m_spinner.set(-1);
     }
@@ -185,10 +194,23 @@ public class Robot extends TimedRobot {
     {
         boolean camTarget = camera.isTarget();
         double camSpeed;
+        double camAngle;
+        double hoodAngle;
         if(camTarget == true)
         {
           camSpeed = camera.getTx() * 0.01;
-          System.out.println("Camspeed: " + camSpeed);
+          camAngle = camera.getTy();
+          if(camAngle > cam_y[cam_y.length - 1])
+          {
+            hoodAngle = 0;
+          }else if(camAngle < cam_y[0])
+          {
+            hoodAngle = 170;
+          }else{
+            hoodAngle = polySpline.value(camAngle);
+          }
+          hoodServo.setAngle(hoodAngle);
+          System.out.println("CamAngle: " + camAngle + ", HoodAnlge: " + hoodAngle);
         }
         else
         {
@@ -205,12 +227,7 @@ public class Robot extends TimedRobot {
           camSpeed = -.2;
         }
         m_turretMotor.set(-camSpeed);
-    }
-    
-     
-     
+    }     
   }
-
-
   }
  
