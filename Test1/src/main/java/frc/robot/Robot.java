@@ -1,11 +1,14 @@
 
 package frc.robot;
+//package edu.wpi.first.wpilibj.examples.hatchbottraditional.commands;
 
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.TimedRobot;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
+import com.ctre.phoenix.motorcontrol.FeedbackDevice;
+
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.Servo;
@@ -68,8 +71,16 @@ public class Robot extends TimedRobot {
   private boolean motorSwitchPrev = false;
   private boolean motorState = false;
 
+  private double heading;
+  private double prev_enc_right;
+  private double prev_enc_left;
+
+  private double pos_x;
+  private double pos_y;
+
   // Kauail Labs AHRS (for heading and rate)
-  //private AHRS ahrs = new AHRS(SPI.Port.kMXP);
+  private AHRS ahrs = new AHRS(SPI.Port.kMXP);
+
 
   @Override
   public void robotInit() {
@@ -81,8 +92,7 @@ public class Robot extends TimedRobot {
     m_rearRight.setInverted(true);
     m_frontLeft.setInverted(true);
     m_frontRight.setInverted(true);
-
-
+    
     // Defaults to drift on neutral, this sets brake mode
     //m_rearLeft.setNeutralMode(NeutralMode.Brake);
     //m_rearRight.setNeutralMode(NeutralMode.Brake);
@@ -98,8 +108,38 @@ public class Robot extends TimedRobot {
     c.setClosedLoopControl(true);
 
     polySpline = interp.interpolate(cam_y, cam_angles);
+
+    m_frontLeft.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
+    m_frontRight.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
   }
   
+
+  @Override
+  public void autonomousInit() {
+    ahrs.zeroYaw(); 
+    prev_enc_left = m_frontLeft.getSelectedSensorPosition();
+    prev_enc_right = m_frontRight.getSelectedSensorPosition();
+    pos_x = 0;
+    pos_y = 0;
+  }
+
+  @Override
+  public void autonomousPeriodic() {
+    heading = ahrs.getYaw();
+
+    double enc_left = m_frontLeft.getSelectedSensorPosition();
+    double enc_right = m_frontRight.getSelectedSensorPosition();
+
+    double diff_enc = (((-(enc_left - prev_enc_left)) + (enc_right - prev_enc_right))/2.0)/3000.0;
+
+    pos_x += diff_enc * Math.cos(heading * Math.PI/180.0);
+    pos_y += diff_enc * Math.sin(heading * Math.PI/180.0);
+
+    System.out.println("Encoder value is " + diff_enc + " (x, y): " + pos_x + ", " + pos_y);
+    prev_enc_left = enc_left;
+    prev_enc_right = enc_right;
+
+  }
 
   @Override
   public void teleopPeriodic() {
@@ -109,7 +149,7 @@ public class Robot extends TimedRobot {
     double forward = m_driverController.getTriggerAxis(Hand.kRight);
     double front_back = reverse < 0.1 ? forward : -reverse;
     double left_right = m_driverController.getX(Hand.kLeft);
-
+    
 
     left_right = left_right > 0 ? 0.5*Math.pow(Math.abs(left_right), 3) : -0.5*Math.pow(Math.abs(left_right), 3);
     
