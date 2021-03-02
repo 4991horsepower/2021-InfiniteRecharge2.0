@@ -18,6 +18,9 @@ import edu.wpi.first.wpilibj.SPI;
 
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
+import com.revrobotics.CANEncoder;
+import com.revrobotics.CANPIDController;
+import com.revrobotics.ControlType;
 
 import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
 import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
@@ -55,7 +58,11 @@ public class Robot extends TimedRobot {
   // Shooter
   private CANSparkMax m_leftShooter = new CANSparkMax(12, MotorType.kBrushless);
   private CANSparkMax m_rightShooter = new CANSparkMax(9, MotorType.kBrushless);
+
   private CANSparkMax m_turretMotor = new CANSparkMax(10, MotorType.kBrushless);
+  private CANPIDController m_pidController;
+  private CANEncoder m_encoder;
+
   private boolean wheelPrev = false; 
   private boolean wheelState = false;
 
@@ -78,15 +85,25 @@ public class Robot extends TimedRobot {
   private double pos_x;
   private double pos_y;
 
+  private double x_targets[] = {2.0, 5.0, 5.0, 0.0, -5.0, -5.0, -2.0, 0.0};
+  private double y_targets[] = {3.0, 6.0, 10.0, 15.0, 10.0, 6.0, 3.0, 0.0};
+  private int targetIndex = 0;
+  private double minDistance = 0.5;
+ 
+
   // Kauail Labs AHRS (for heading and rate)
   private AHRS ahrs = new AHRS(SPI.Port.kMXP);
+
+  private double shooterSpeed = -4700;
+  private double shooterError = 100;
+
+  private double hoodAngle = 85;
 
 
   @Override
   public void robotInit() {
     m_driverController = new XboxController(0);
     m_copilotController = new XboxController(1);
-
 
     m_rearLeft.setInverted(true);
     m_rearRight.setInverted(true);
@@ -102,6 +119,26 @@ public class Robot extends TimedRobot {
 
     m_rearLeft.follow(m_frontLeft);
     m_rearRight.follow(m_frontRight);
+
+    m_pidController = m_leftShooter.getPIDController();
+    m_encoder = m_leftShooter.getEncoder();
+
+    // PID coefficients
+    double kP = 0.0005; 
+    double kI = 6e-7;
+    double kD = 0; 
+    double kIz = 0; 
+    double kFF = 0; 
+    double kMaxOutput = 1; 
+    double kMinOutput = -1;
+
+    // set PID coefficients
+    m_pidController.setP(kP);
+    m_pidController.setI(kI);
+    m_pidController.setD(kD);
+    m_pidController.setIZone(kIz);
+    m_pidController.setFF(kFF);
+    m_pidController.setOutputRange(kMinOutput, kMaxOutput);
 
     m_rightShooter.follow(m_leftShooter, true);
 
@@ -139,6 +176,15 @@ public class Robot extends TimedRobot {
     prev_enc_left = enc_left;
     prev_enc_right = enc_right;
 
+    double yDiff = y_targets[targetIndex] - pos_y;
+    double xDiff = x_targets[targetIndex] - pos_x;
+    double targetHeading = Math.atan2(yDiff , xDiff)*180.0/Math.PI;
+    double targetDistance = Math.sqrt((xDiff*xDiff)+(yDiff*yDiff));
+    
+    if (targetDistance <= minDistance){
+      targetIndex++;
+    }
+    System.out.println("targetDistance is " + targetDistance + "Heading is " + heading + "targetIndex is " + targetIndex);
   }
 
   @Override
@@ -175,19 +221,13 @@ public class Robot extends TimedRobot {
     
     if(wheelState == true)
     {
-      m_leftShooter.set(-0.5);
+      m_pidController.setReference(shooterSpeed, ControlType.kVelocity);
     }
     else
     {
-      m_leftShooter.set(0);
+      m_pidController.setReference(0, ControlType.kVelocity);
     }
     
-    //m_rightShooter.set(1);
-    
-    //m_rightShooter.set(0);
-
-    
-
     if(m_copilotController.getXButton()==true && intakeSwitchPrev == false)
     {
         intakeState = !intakeState;
@@ -196,8 +236,9 @@ public class Robot extends TimedRobot {
     intake_in.set(intakeState);
     intake_out.set(!intakeState);
 
-    if(intakeState == false)
+    if(m_copilotController.getAButton())
     {
+      // turned of intake motor for testing purposes
       m_intake.set(-1);
     }
     else 
@@ -207,14 +248,13 @@ public class Robot extends TimedRobot {
 
     if(intakeState == false || wheelState == true)
     {
-      m_spinner.set(-1);
+      m_spinner.set(-0.8);
     }
     else
     {
       m_spinner.set(0);
     }
-
-    if(m_copilotController.getAButton())
+    if (Math.abs(m_encoder.getVelocity()-shooterSpeed) < shooterError)
     {
       m_wheel.set(-1);
     }
@@ -228,33 +268,44 @@ public class Robot extends TimedRobot {
     if(Math.abs(turretSpeed) > 0.1)
     {
       m_turretMotor.set(turretSpeed/5);
-      System.out.println("Manual Mode");
     }
     else
     {
         boolean camTarget = camera.isTarget();
         double camSpeed;
         double camAngle;
-        double hoodAngle;
+        //double hoodAngle;
         if(camTarget == true)
         {
           camSpeed = camera.getTx() * 0.01;
           camAngle = camera.getTy();
+          /*
           if(camAngle > cam_y[cam_y.length - 1])
           {
-            hoodAngle = 0;
-          }else if(camAngle < cam_y[0])
-          {
-            hoodAngle = 170;
+            hoodAngle = cam_angles[cam_y.length - 1];
+          }else if(camAngle < cam_y[0]){
+            hoodAngle = cam_angles[0];
           }else{
             hoodAngle = polySpline.value(camAngle);
+          }*/
+
+          if(Math.abs(m_copilotController.getY(Hand.kRight)) > 0.1)
+          {
+            hoodAngle += m_copilotController.getY(Hand.kRight);
           }
+
+          if(hoodAngle > 170)
+            hoodAngle = 170;
+          if(hoodAngle < 0)
+            hoodAngle = 0;
+
+          //hoodAngle = 85.0*(1.0-m_copilotController.getY(Hand.kRight));
           hoodServo.setAngle(hoodAngle);
           System.out.println("CamAngle: " + camAngle + ", HoodAnlge: " + hoodAngle);
+          //System.out.printf("CamAngle: %.4d, HoodAngle: %.4d\n\r", camAngle, hoodAngle);
         }
         else
         {
-          System.out.println("No target detected");
           camSpeed = 0;
         }
          
