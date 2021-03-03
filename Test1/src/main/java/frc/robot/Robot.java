@@ -33,15 +33,11 @@ public class Robot extends TimedRobot {
   private XboxController m_driverController;
   private XboxController m_copilotController;
 
-  private double cam_y[] = {-16.9921, -13.0028, -11.3832, -8.30721, -4.7067, 0.92128, 9.3866};
-  private double cam_angles[] = {62.7953, 32.4803, 49.3701, 49.3701, 50.2362, 50.2362, 47.6378};
-  
-  private double x_targ[] = {0, -2.5, -5, -5, -5, -5, -2.5, 0, -2.5, -5, -2.5, 0, 0, 0, 0, -2.5, -5};
-  private double y_targ[] = {2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 20, 17.5, 15, 12.5, 10,7.5, 5, 0};
+  private double cam_y[] = {-11.2060089111328, -7.54799652099609, -0.55279541015625, 3.23971557617187, 16.1772384643554};
+  private double cam_angles[] = {52.4729946553707, 58.2363437116146, 51.8642348870635, 50.3148376047611, 36.9512795135378};
 
   private LinearInterpolator interp = new LinearInterpolator();
   private PolynomialSplineFunction polySpline;
-  private int targetIndex = 0;
 
   // Drive Base
   private WPI_TalonSRX m_frontLeft = new WPI_TalonSRX(5);
@@ -151,7 +147,7 @@ public class Robot extends TimedRobot {
     polySpline = interp.interpolate(cam_y, cam_angles);
 
     m_frontLeft.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
-    m_rearRight.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
+    m_frontRight.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
   }
   
 
@@ -159,9 +155,9 @@ public class Robot extends TimedRobot {
   public void autonomousInit() {
     ahrs.zeroYaw(); 
     prev_enc_left = m_frontLeft.getSelectedSensorPosition();
-    prev_enc_right = m_rearRight.getSelectedSensorPosition();
+    prev_enc_right = m_frontRight.getSelectedSensorPosition();
     pos_x = 0;
-    pos_y = 0;    
+    pos_y = 0;
   }
 
   @Override
@@ -169,66 +165,26 @@ public class Robot extends TimedRobot {
     heading = ahrs.getYaw();
 
     double enc_left = m_frontLeft.getSelectedSensorPosition();
-    double enc_right = m_rearRight.getSelectedSensorPosition();
+    double enc_right = m_frontRight.getSelectedSensorPosition();
 
-    double diff_enc_left = enc_left - prev_enc_left;
-    double diff_enc_right = enc_right - prev_enc_right;
+    double diff_enc = (((-(enc_left - prev_enc_left)) + (enc_right - prev_enc_right))/2.0)/3000.0;
 
-    double diff_enc = ((diff_enc_right - diff_enc_left)/2.0) / 900.0;
+    pos_x += diff_enc * Math.cos(heading * Math.PI/180.0);
+    pos_y += diff_enc * Math.sin(heading * Math.PI/180.0);
 
-    //System.out.println("Diff enc left: " + diff_enc_left + ", Diff enc right: " + diff_enc_right);
-
-    pos_y += diff_enc * Math.cos(heading * Math.PI/180.0);
-    pos_x += diff_enc * Math.sin(heading * Math.PI/180.0);
-
-    //System.out.println("(x, y): " + pos_x + ", " + pos_y);
+    System.out.println("Encoder value is " + diff_enc + " (x, y): " + pos_x + ", " + pos_y);
     prev_enc_left = enc_left;
     prev_enc_right = enc_right;
-    double fwd;
 
-    double x_diff;
-    double y_diff;
-    double targetHeading;
-  
-     if (targetIndex >= x_targ.length)
-    {
-      fwd = 0.0;
-      x_diff = x_targ[x_targ.length-1] - pos_x;
-      y_diff = y_targ[x_targ.length-1] - pos_y;
-      targetHeading = heading - (Math.atan2(x_diff, y_diff)*180.0/Math.PI);
-    }
-    else
-    {
-      x_diff = x_targ[targetIndex] - pos_x;
-      y_diff = y_targ[targetIndex] - pos_y;
-      targetHeading = heading - (Math.atan2(x_diff, y_diff)*180.0/Math.PI);
-      fwd = 0.3;
-    }
-
-    if(targetHeading > 180)
-      targetHeading -= 360;
-    if(targetHeading < -180)
-      targetHeading += 360;
+    double yDiff = y_targets[targetIndex] - pos_y;
+    double xDiff = x_targets[targetIndex] - pos_x;
+    double targetHeading = Math.atan2(yDiff , xDiff)*180.0/Math.PI;
+    double targetDistance = Math.sqrt((xDiff*xDiff)+(yDiff*yDiff));
     
-    double targetDistance = Math.sqrt(x_diff * x_diff + y_diff * y_diff);
-    double targetMinDistance = 0.5;
-    if (targetDistance < targetMinDistance)
-    {
+    if (targetDistance <= minDistance){
       targetIndex++;
     }
-    System.out.println("Target Distance: " + targetDistance + ", Target Heading: " + (heading - targetHeading) + ", Target Index: " + targetIndex);
-  
-    double left_right = -targetHeading * 0.005;
-    if(left_right > 0.25)
-      left_right = 0.25;
-    if(left_right < -0.25)
-      left_right = -0.25;
-
-    double left = -fwd - left_right;
-    double right = fwd - left_right;
-
-    m_frontRight.set(right);
-    m_frontLeft.set(left);
+    System.out.println("targetDistance is " + targetDistance + "Heading is " + heading + "targetIndex is " + targetIndex);
   }
 
   @Override
