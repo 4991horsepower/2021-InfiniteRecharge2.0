@@ -85,8 +85,18 @@ public class Robot extends TimedRobot {
   private double pos_x;
   private double pos_y;
 
-  private double x_targets[] = {2.0, 5.0, 5.0, 0.0, -5.0, -5.0, -2.0, 0.0};
-  private double y_targets[] = {3.0, 6.0, 10.0, 15.0, 10.0, 6.0, 3.0, 0.0};
+  //slalom path 
+  //private double x_targets[] = {2.0, 5.0, 5.0, 0.0, -5.0, -5.0, -2.0, 0.0};
+  //private double y_targets[] = {3.0, 6.0, 10.0, 15.0, 10.0, 6.0, 3.0, 0.0};
+
+  //barrel racing path
+  private double x_targets[] = {0.0,2.5,5.0,2.5,0.0,0.0,-2.5,-5.0,-2.5,0.0,5.0,2.5,0.0,5.0,2.5,0.0,0.0};
+  private double y_targets[] = {9.0,11.5,9.0,7.5,9.0,17.0,19.5,17.0,14.5,17.0,22.0,24.5,22.0,0.0};
+
+  //bounce path
+  //private double x_targets[] = {0, -5, -5, 0};
+  //private double y_targets[] = {10, 0, 10, 0};
+  
   private int targetIndex = 0;
   private double minDistance = 0.5;
  
@@ -147,7 +157,7 @@ public class Robot extends TimedRobot {
     polySpline = interp.interpolate(cam_y, cam_angles);
 
     m_frontLeft.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
-    m_frontRight.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
+    m_rearRight.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
   }
   
 
@@ -155,36 +165,85 @@ public class Robot extends TimedRobot {
   public void autonomousInit() {
     ahrs.zeroYaw(); 
     prev_enc_left = m_frontLeft.getSelectedSensorPosition();
-    prev_enc_right = m_frontRight.getSelectedSensorPosition();
+    prev_enc_right = m_rearRight.getSelectedSensorPosition();
     pos_x = 0;
     pos_y = 0;
+    targetIndex = 0;
   }
 
   @Override
   public void autonomousPeriodic() {
     heading = ahrs.getYaw();
 
+    double enc_right = m_rearRight.getSelectedSensorPosition();
     double enc_left = m_frontLeft.getSelectedSensorPosition();
-    double enc_right = m_frontRight.getSelectedSensorPosition();
 
-    double diff_enc = (((-(enc_left - prev_enc_left)) + (enc_right - prev_enc_right))/2.0)/3000.0;
+    double diff_enc_left = enc_left - prev_enc_left;
+    double diff_enc_right = enc_right - prev_enc_right;
 
-    pos_x += diff_enc * Math.cos(heading * Math.PI/180.0);
-    pos_y += diff_enc * Math.sin(heading * Math.PI/180.0);
+    double diff_enc = ((diff_enc_right - diff_enc_left)/2.0) / 900.0;
 
-    System.out.println("Encoder value is " + diff_enc + " (x, y): " + pos_x + ", " + pos_y);
+    pos_y += diff_enc * Math.cos(heading * Math.PI/180.0);
+    pos_x += diff_enc * Math.sin(heading * Math.PI/180.0);
+
     prev_enc_left = enc_left;
     prev_enc_right = enc_right;
 
-    double yDiff = y_targets[targetIndex] - pos_y;
-    double xDiff = x_targets[targetIndex] - pos_x;
-    double targetHeading = Math.atan2(yDiff , xDiff)*180.0/Math.PI;
-    double targetDistance = Math.sqrt((xDiff*xDiff)+(yDiff*yDiff));
-    
-    if (targetDistance <= minDistance){
-      targetIndex++;
+    double fwd;
+
+    double x_diff;
+    double y_diff;
+    double targetHeading;
+
+     if (targetIndex >= x_targets.length){
+      fwd = 0.0;
+      x_diff = x_targets[x_targets.length-1] - pos_x;
+      y_diff = y_targets[x_targets.length-1] - pos_y;
+      targetHeading = heading - (Math.atan2(x_diff, y_diff)*180.0/Math.PI);
     }
-    System.out.println("targetDistance is " + targetDistance + "Heading is " + heading + "targetIndex is " + targetIndex);
+    else
+    {
+      x_diff = x_targets[targetIndex] - pos_x;
+      y_diff = y_targets[targetIndex] - pos_y;
+      targetHeading = heading - (Math.atan2(x_diff, y_diff)*180.0/Math.PI);
+      fwd = 0.3;
+    }
+
+    if(targetHeading > 180)
+      targetHeading -= 360;
+    if(targetHeading < -180)
+      targetHeading += 360;
+
+    if(Math.abs(targetHeading) > 90)
+    {
+      targetHeading -= 180;
+      fwd = -0.3;
+      if(targetHeading < -180)
+      {
+        targetHeading += 360;
+      }
+    }
+    
+    double targetDistance = Math.sqrt(x_diff * x_diff + y_diff * y_diff);
+    double targetMinDistance = 0.5;
+    if (targetDistance < targetMinDistance)
+    {
+      targetIndex++;
+    }  
+    double left_right = -targetHeading * 0.005;
+    if(left_right > 0.25)
+      left_right = 0.25;
+    if(left_right < -0.25)
+      left_right = -0.25;
+
+    double left = -fwd - left_right;
+    double right = fwd - left_right;
+
+    m_frontRight.set(right);
+    m_frontLeft.set(left);
+  
+  
+    System.out.println("targetDistance is " + targetDistance + " Heading is " + heading + " targetIndex is " + targetIndex);
   }
 
   @Override
