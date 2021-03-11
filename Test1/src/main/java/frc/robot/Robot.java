@@ -25,6 +25,17 @@ import com.revrobotics.ControlType;
 import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
 import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.util.Scanner;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.util.Locale;
+
+
 /**
  * This is a demo program showing the use of the RobotDrive class, specifically
  * it contains the code necessary to operate a robot with tank drive.
@@ -85,6 +96,9 @@ public class Robot extends TimedRobot {
   private double pos_x;
   private double pos_y;
 
+  private PrintStream autoWriter;
+  private Scanner autoScan;
+
   //slalom path 
   //private double x_targets[] = {2.0, 5.0, 5.0, 0.0, -5.0, -5.0, -2.0, 0.0};
   //private double y_targets[] = {3.0, 6.0, 10.0, 15.0, 10.0, 6.0, 3.0, 0.0};
@@ -97,10 +111,9 @@ public class Robot extends TimedRobot {
   //private double x_targets[] = {0, -5, -5, 0};
   //private double y_targets[] = {10, 0, 10, 0};
   
-  private int targetIndex = 0;
-  private double minDistance = 0.5;
+  private double target_x = 0;
+  private double target_y = 0;
  
-
   // Kauail Labs AHRS (for heading and rate)
   private AHRS ahrs = new AHRS(SPI.Port.kMXP);
 
@@ -109,6 +122,9 @@ public class Robot extends TimedRobot {
 
   private double hoodAngle = 85;
 
+  private boolean isRecording = false;
+  private String autoPath = "/home/lvuser/barrelRacingPath.txt";
+  private double autoTime;
 
   @Override
   public void robotInit() {
@@ -120,13 +136,6 @@ public class Robot extends TimedRobot {
     m_frontLeft.setInverted(true);
     m_frontRight.setInverted(true);
     
-    // Defaults to drift on neutral, this sets brake mode
-    //m_rearLeft.setNeutralMode(NeutralMode.Brake);
-    //m_rearRight.setNeutralMode(NeutralMode.Brake);
-    //m_frontLeft.setNeutralMode(NeutralMode.Brake);
-    //m_frontRight.setNeutralMode(NeutralMode.Brake);
-
-
     m_rearLeft.follow(m_frontLeft);
     m_rearRight.follow(m_frontRight);
 
@@ -168,7 +177,23 @@ public class Robot extends TimedRobot {
     prev_enc_right = m_rearRight.getSelectedSensorPosition();
     pos_x = 0;
     pos_y = 0;
-    targetIndex = 0;
+    autoTime = System.currentTimeMillis() + 500;
+
+    try{
+      if (isRecording){
+          autoWriter = new PrintStream(autoPath);
+      }
+      else {
+        autoScan = new Scanner(new File(autoPath));
+        autoScan.useLocale(Locale.US);
+        target_x = autoScan.nextDouble();
+        target_y = autoScan.nextDouble();
+      }
+    }
+    catch(FileNotFoundException e)
+    {
+      System.out.println(e.getCause());
+    }    
   }
 
   @Override
@@ -189,62 +214,77 @@ public class Robot extends TimedRobot {
     prev_enc_left = enc_left;
     prev_enc_right = enc_right;
 
-    double fwd;
+    double fwd = 0.3;
 
     double x_diff;
     double y_diff;
     double targetHeading;
 
-     if (targetIndex >= x_targets.length){
-      fwd = 0.0;
-      x_diff = x_targets[x_targets.length-1] - pos_x;
-      y_diff = y_targets[x_targets.length-1] - pos_y;
-      targetHeading = heading - (Math.atan2(x_diff, y_diff)*180.0/Math.PI);
-    }
-    else
-    {
-      x_diff = x_targets[targetIndex] - pos_x;
-      y_diff = y_targets[targetIndex] - pos_y;
-      targetHeading = heading - (Math.atan2(x_diff, y_diff)*180.0/Math.PI);
-      fwd = 0.3;
-    }
-
-    if(targetHeading > 180)
-      targetHeading -= 360;
-    if(targetHeading < -180)
-      targetHeading += 360;
-
-    if(Math.abs(targetHeading) > 90)
-    {
-      targetHeading -= 180;
-      fwd = -0.3;
-      if(targetHeading < -180)
-      {
-        targetHeading += 360;
+    if (isRecording){
+      if(System.currentTimeMillis() > autoTime){
+        autoTime += 500;
+        autoWriter.println(pos_x + " " + pos_y);
       }
     }
-    
-    double targetDistance = Math.sqrt(x_diff * x_diff + y_diff * y_diff);
-    double targetMinDistance = 0.5;
-    if (targetDistance < targetMinDistance)
-    {
-      targetIndex++;
-    }  
-    double left_right = -targetHeading * 0.005;
-    if(left_right > 0.25)
-      left_right = 0.25;
-    if(left_right < -0.25)
-      left_right = -0.25;
+    else{
+      x_diff = target_x - pos_x;
+      y_diff = target_y - pos_y;
 
-    double left = -fwd - left_right;
-    double right = fwd - left_right;
-
-    m_frontRight.set(right);
-    m_frontLeft.set(left);
+      targetHeading = heading - (Math.atan2(x_diff, y_diff)*180.0/Math.PI);
   
+      if(targetHeading > 180)
+        targetHeading -= 360;
+      if(targetHeading < -180)
+        targetHeading += 360;
   
-    System.out.println("targetDistance is " + targetDistance + " Heading is " + heading + " targetIndex is " + targetIndex);
+      if(Math.abs(targetHeading) > 90)
+      {
+        targetHeading -= 180;
+        fwd = -0.3;
+        if(targetHeading < -180)
+        {
+          targetHeading += 360;
+        }
+      }
+      
+      double targetDistance = Math.sqrt(x_diff * x_diff + y_diff * y_diff);
+      double targetMinDistance = 0.5;
+      if (targetDistance < targetMinDistance)
+      {
+        if(autoScan.hasNextDouble())
+        {
+          target_x = autoScan.nextDouble();
+          target_y = autoScan.nextDouble();
+          fwd = 0.3;
+        }
+        else
+        {
+          fwd = 0;
+        }
+      }  
+      
+      double left_right = -targetHeading * 0.005;
+      if(left_right > 0.25)
+        left_right = 0.25;
+      if(left_right < -0.25)
+        left_right = -0.25;
+  
+      double left = -fwd - left_right;
+      double right = fwd - left_right;
+  
+      m_frontRight.set(right);
+      m_frontLeft.set(left);
+    }
   }
+
+  @Override
+  public void disabledInit() {
+    if(isRecording && autoWriter != null)
+    {
+      autoWriter.close();
+    }
+  }
+
 
   @Override
   public void teleopPeriodic() {
