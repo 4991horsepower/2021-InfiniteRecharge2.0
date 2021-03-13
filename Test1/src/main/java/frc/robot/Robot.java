@@ -6,8 +6,8 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.TimedRobot;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
-import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.FeedbackDevice;
+import com.ctre.phoenix.motorcontrol.*;
 
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.Solenoid;
@@ -27,12 +27,12 @@ import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.IOException;
+//import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Scanner;
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
+//import java.io.BufferedReader;
+//import java.io.FileInputStream;
+//import java.io.InputStreamReader;
 import java.util.Locale;
 
 
@@ -86,8 +86,6 @@ public class Robot extends TimedRobot {
   private boolean intakeState = true;
   private Solenoid intake_in = new Solenoid(2);
   private Solenoid intake_out = new Solenoid(3);
-  private boolean motorSwitchPrev = false;
-  private boolean motorState = false;
 
   private double heading;
   private double prev_enc_right;
@@ -98,14 +96,15 @@ public class Robot extends TimedRobot {
 
   private PrintStream autoWriter;
   private Scanner autoScan;
+  private boolean prevYPos = false; 
 
   //slalom path 
   //private double x_targets[] = {2.0, 5.0, 5.0, 0.0, -5.0, -5.0, -2.0, 0.0};
   //private double y_targets[] = {3.0, 6.0, 10.0, 15.0, 10.0, 6.0, 3.0, 0.0};
 
   //barrel racing path
-  private double x_targets[] = {0.0,2.5,5.0,2.5,0.0,0.0,-2.5,-5.0,-2.5,0.0,5.0,2.5,0.0,5.0,2.5,0.0,0.0};
-  private double y_targets[] = {9.0,11.5,9.0,7.5,9.0,17.0,19.5,17.0,14.5,17.0,22.0,24.5,22.0,0.0};
+  //private double x_targets[] = {0.0,2.5,5.0,2.5,0.0,0.0,-2.5,-5.0,-2.5,0.0,5.0,2.5,0.0,5.0,2.5,0.0,0.0};
+  //private double y_targets[] = {9.0,11.5,9.0,7.5,9.0,17.0,19.5,17.0,14.5,17.0,22.0,24.5,22.0,0.0};
 
   //bounce path
   //private double x_targets[] = {0, -5, -5, 0};
@@ -126,10 +125,19 @@ public class Robot extends TimedRobot {
   private String autoPath = "/home/lvuser/barrelRacingPath.txt";
   private double autoTime;
 
+  private double maxSpeed = 1000;
+
   @Override
   public void robotInit() {
     m_driverController = new XboxController(0);
     m_copilotController = new XboxController(1);
+
+
+    m_frontRight.configFactoryDefault();
+    m_frontLeft.configFactoryDefault();
+    m_rearRight.configFactoryDefault();
+    m_rearLeft.configFactoryDefault();
+
 
     m_rearLeft.setInverted(true);
     m_rearRight.setInverted(true);
@@ -137,7 +145,7 @@ public class Robot extends TimedRobot {
     m_frontRight.setInverted(true);
     
     m_rearLeft.follow(m_frontLeft);
-    m_rearRight.follow(m_frontRight);
+    m_frontRight.follow(m_rearRight);
 
     m_pidController = m_leftShooter.getPIDController();
     m_encoder = m_leftShooter.getEncoder();
@@ -167,6 +175,27 @@ public class Robot extends TimedRobot {
 
     m_frontLeft.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
     m_rearRight.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder);
+
+    m_frontLeft.configNominalOutputForward(0);
+		m_frontLeft.configNominalOutputReverse(0);
+		m_frontLeft.configPeakOutputForward(1);
+    m_frontLeft.configPeakOutputReverse(-1);
+    
+    m_rearRight.configNominalOutputForward(0);
+		m_rearRight.configNominalOutputReverse(0);
+		m_rearRight.configPeakOutputForward(1);
+    m_rearRight.configPeakOutputReverse(-1);
+    
+    m_frontLeft.config_kF(0, 0);//1023.0/maxSpeed);
+		m_frontLeft.config_kP(0, 4.0);
+		m_frontLeft.config_kI(0, 0.0);
+    m_frontLeft.config_kD(0, 20);
+    
+    m_rearRight.config_kF(0, 0);//1023.0/maxSpeed);
+		m_rearRight.config_kP(0, 4.0);
+		m_rearRight.config_kI(0, 0.0);
+		m_rearRight.config_kD(0, 20);
+
   }
   
 
@@ -180,15 +209,9 @@ public class Robot extends TimedRobot {
     autoTime = System.currentTimeMillis() + 500;
 
     try{
-      if (isRecording){
-          autoWriter = new PrintStream(autoPath);
-      }
-      else {
+        System.out.println("isRecording = " + isRecording);
         autoScan = new Scanner(new File(autoPath));
         autoScan.useLocale(Locale.US);
-        target_x = autoScan.nextDouble();
-        target_y = autoScan.nextDouble();
-      }
     }
     catch(FileNotFoundException e)
     {
@@ -202,6 +225,9 @@ public class Robot extends TimedRobot {
 
     double enc_right = m_rearRight.getSelectedSensorPosition();
     double enc_left = m_frontLeft.getSelectedSensorPosition();
+
+    double left_right;
+    double front_back;
 
     double diff_enc_left = enc_left - prev_enc_left;
     double diff_enc_right = enc_right - prev_enc_right;
@@ -220,24 +246,19 @@ public class Robot extends TimedRobot {
     double y_diff;
     double targetHeading;
 
-    if (isRecording){
-      if(System.currentTimeMillis() > autoTime){
-        autoTime += 500;
-        autoWriter.println(pos_x + " " + pos_y);
-      }
-    }
-    else{
       x_diff = target_x - pos_x;
       y_diff = target_y - pos_y;
 
       targetHeading = heading - (Math.atan2(x_diff, y_diff)*180.0/Math.PI);
   
+      fwd = 0.3 * (1.0 - (Math.abs(targetHeading) / 360.0));
+
       if(targetHeading > 180)
         targetHeading -= 360;
       if(targetHeading < -180)
         targetHeading += 360;
   
-      if(Math.abs(targetHeading) > 90)
+      /*if(Math.abs(targetHeading) > 90)
       {
         targetHeading -= 180;
         fwd = -0.3;
@@ -245,51 +266,58 @@ public class Robot extends TimedRobot {
         {
           targetHeading += 360;
         }
-      }
+      }*/
       
       double targetDistance = Math.sqrt(x_diff * x_diff + y_diff * y_diff);
-      double targetMinDistance = 0.5;
-      if (targetDistance < targetMinDistance)
-      {
+      double targetMinDistance = 0.7;
+
         if(autoScan.hasNextDouble())
         {
-          target_x = autoScan.nextDouble();
-          target_y = autoScan.nextDouble();
-          fwd = 0.3;
+          left_right = autoScan.nextDouble();
+          front_back = autoScan.nextDouble();
+
+          targetHeading = autoScan.nextDouble();
+          double headingError = targetHeading - heading;
+          if(headingError > 180)
+          {
+            headingError -= 360;
+          }
+          if(headingError < -180)
+          {
+            headingError += 360;
+          }
+        
+          left_right += 0.01*headingError;
+
         }
         else
         {
-          fwd = 0;
+          left_right = 0;
+          front_back = 0;
         }
-      }  
-      
-      double left_right = -targetHeading * 0.005;
-      if(left_right > 0.25)
-        left_right = 0.25;
-      if(left_right < -0.25)
-        left_right = -0.25;
+
   
-      double left = -fwd - left_right;
-      double right = fwd - left_right;
-  
-      m_frontRight.set(right);
-      m_frontLeft.set(left);
+        double left = -front_back - left_right;
+        double right = front_back - left_right;
+    
+        if(Math.abs(left) < 0.1)
+          left = 0;
+        if(Math.abs(right) < 0.1)
+          right = 0;
+    
+        m_rearRight.set(ControlMode.Velocity, right*maxSpeed);
+        m_frontLeft.set(ControlMode.Velocity, left*maxSpeed);
     }
-  }
+
 
   @Override
-  public void disabledInit() {
-    if(isRecording && autoWriter != null)
-    {
-      autoWriter.close();
-    }
+  public void teleopInit() {
+    ahrs.zeroYaw();
   }
-
 
   @Override
   public void teleopPeriodic() {
-    //m_myRobot.tankDrive(m_driverController.getY(Hand.kLeft), m_driverController.getY(Hand.kRight));
-    
+
     double reverse = m_driverController.getTriggerAxis(Hand.kLeft);
     double forward = m_driverController.getTriggerAxis(Hand.kRight);
     double front_back = reverse < 0.1 ? forward : -reverse;
@@ -307,12 +335,11 @@ public class Robot extends TimedRobot {
     if(Math.abs(right) < 0.1)
       right = 0;
 
-    m_frontRight.set(right);
-    m_frontLeft.set(left);
+    m_rearRight.set(ControlMode.Velocity, maxSpeed*right);
+    m_frontLeft.set(ControlMode.Velocity, maxSpeed*left);
 
     if (m_copilotController.getBumperPressed(Hand.kLeft)==true && wheelPrev==false)
     {
-
       wheelState = !wheelState;
     }
     
@@ -337,7 +364,6 @@ public class Robot extends TimedRobot {
 
     if(m_copilotController.getAButton())
     {
-      // turned of intake motor for testing purposes
       m_intake.set(-1);
     }
     else 
@@ -356,68 +382,87 @@ public class Robot extends TimedRobot {
     if (Math.abs(m_encoder.getVelocity()-shooterSpeed) < shooterError)
     {
       m_wheel.set(-1);
+
+      double turretSpeed = m_copilotController.getX(Hand.kRight);
+
+      if(Math.abs(turretSpeed) > 0.1)
+      {
+        m_turretMotor.set(turretSpeed/5);
+      }
+      else
+      {
+          boolean camTarget = camera.isTarget();
+          double camSpeed;
+          double camAngle;
+          //double hoodAngle;
+          if(camTarget == true)
+          {
+            camSpeed = camera.getTx() * 0.01;
+            camAngle = camera.getTy();
+            /*
+            if(camAngle > cam_y[cam_y.length - 1])
+            {
+              hoodAngle = cam_angles[cam_y.length - 1];
+            }else if(camAngle < cam_y[0]){
+              hoodAngle = cam_angles[0];
+            }else{
+              hoodAngle = polySpline.value(camAngle);
+            }*/
+  
+            if(Math.abs(m_copilotController.getY(Hand.kRight)) > 0.1)
+            {
+              hoodAngle += m_copilotController.getY(Hand.kRight);
+            }
+  
+            if(hoodAngle > 170)
+              hoodAngle = 170;
+            if(hoodAngle < 0)
+              hoodAngle = 0;
+  
+            //hoodAngle = 85.0*(1.0-m_copilotController.getY(Hand.kRight));
+            hoodServo.setAngle(hoodAngle);
+            System.out.println("CamAngle: " + camAngle + ", HoodAnlge: " + hoodAngle);
+            //System.out.printf("CamAngle: %.4d, HoodAngle: %.4d\n\r", camAngle, hoodAngle);
+          }
+          else
+          {
+            camSpeed = 0;
+          }
+           
+          if(camSpeed > .2)
+          {
+            camSpeed = .2;
+          }
+          else if(camSpeed < -.2)
+          {
+            camSpeed = -.2;
+          }
+          m_turretMotor.set(-camSpeed);
+      }
     }
     else
     {
       m_wheel.set(0);
     }
 
-    double turretSpeed = m_copilotController.getX(Hand.kRight);
-
-    if(Math.abs(turretSpeed) > 0.1)
-    {
-      m_turretMotor.set(turretSpeed/5);
+      if (m_copilotController.getYButton() && prevYPos == false){
+        try{
+        System.out.println("isRecording = " + isRecording);
+        autoWriter = new PrintStream(autoPath);
+        }
+        catch(FileNotFoundException e)
+        {
+          System.out.println(e.getCause());
+        }    
+      }
+      if (m_copilotController.getYButton()){
+        heading = ahrs.getYaw();
+        autoWriter.println(left_right + " " + front_back + " " + heading);
+      }
+      if (m_copilotController.getYButton() == false && prevYPos == true){
+        autoWriter.close();
+      }
+      prevYPos = m_copilotController.getYButton(); 
     }
-    else
-    {
-        boolean camTarget = camera.isTarget();
-        double camSpeed;
-        double camAngle;
-        //double hoodAngle;
-        if(camTarget == true)
-        {
-          camSpeed = camera.getTx() * 0.01;
-          camAngle = camera.getTy();
-          /*
-          if(camAngle > cam_y[cam_y.length - 1])
-          {
-            hoodAngle = cam_angles[cam_y.length - 1];
-          }else if(camAngle < cam_y[0]){
-            hoodAngle = cam_angles[0];
-          }else{
-            hoodAngle = polySpline.value(camAngle);
-          }*/
-
-          if(Math.abs(m_copilotController.getY(Hand.kRight)) > 0.1)
-          {
-            hoodAngle += m_copilotController.getY(Hand.kRight);
-          }
-
-          if(hoodAngle > 170)
-            hoodAngle = 170;
-          if(hoodAngle < 0)
-            hoodAngle = 0;
-
-          //hoodAngle = 85.0*(1.0-m_copilotController.getY(Hand.kRight));
-          hoodServo.setAngle(hoodAngle);
-          System.out.println("CamAngle: " + camAngle + ", HoodAnlge: " + hoodAngle);
-          //System.out.printf("CamAngle: %.4d, HoodAngle: %.4d\n\r", camAngle, hoodAngle);
-        }
-        else
-        {
-          camSpeed = 0;
-        }
-         
-        if(camSpeed > .2)
-        {
-          camSpeed = .2;
-        }
-        else if(camSpeed < -.2)
-        {
-          camSpeed = -.2;
-        }
-        m_turretMotor.set(-camSpeed);
-    }     
-  }
   }
  
