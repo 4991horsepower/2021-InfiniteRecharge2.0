@@ -186,13 +186,13 @@ public class Robot extends TimedRobot {
 		m_rearRight.configPeakOutputForward(1);
     m_rearRight.configPeakOutputReverse(-1);
     
-    m_frontLeft.config_kF(0, 0);//1023.0/maxSpeed);
-		m_frontLeft.config_kP(0, 4.0);
+    m_frontLeft.config_kF(0, 1023.0/maxSpeed);
+		m_frontLeft.config_kP(0, 2.0);
 		m_frontLeft.config_kI(0, 0.0);
     m_frontLeft.config_kD(0, 20);
     
-    m_rearRight.config_kF(0, 0);//1023.0/maxSpeed);
-		m_rearRight.config_kP(0, 4.0);
+    m_rearRight.config_kF(0, 1023.0/maxSpeed);
+		m_rearRight.config_kP(0, 2.0);
 		m_rearRight.config_kI(0, 0.0);
 		m_rearRight.config_kD(0, 20);
 
@@ -300,27 +300,23 @@ public class Robot extends TimedRobot {
         double left = -front_back - left_right;
         double right = front_back - left_right;
     
+        /*
         if(Math.abs(left) < 0.1)
           left = 0;
         if(Math.abs(right) < 0.1)
           right = 0;
-    
+        */
+
         m_rearRight.set(ControlMode.Velocity, right*maxSpeed);
         m_frontLeft.set(ControlMode.Velocity, left*maxSpeed);
     }
-
-
-  @Override
-  public void teleopInit() {
-    ahrs.zeroYaw();
-  }
 
   @Override
   public void teleopPeriodic() {
 
     double reverse = m_driverController.getTriggerAxis(Hand.kLeft);
     double forward = m_driverController.getTriggerAxis(Hand.kRight);
-    double front_back = reverse < 0.1 ? forward : -reverse;
+    double front_back = reverse < 0.01 ? forward : -reverse;
     double left_right = m_driverController.getX(Hand.kLeft);
     
 
@@ -330,10 +326,12 @@ public class Robot extends TimedRobot {
     double left = -front_back - left_right;
     double right = front_back - left_right;
 
+    /*
     if(Math.abs(left) < 0.1)
       left = 0;
     if(Math.abs(right) < 0.1)
       right = 0;
+    */
 
     m_rearRight.set(ControlMode.Velocity, maxSpeed*right);
     m_frontLeft.set(ControlMode.Velocity, maxSpeed*left);
@@ -410,7 +408,7 @@ public class Robot extends TimedRobot {
             }*/
   
             if(Math.abs(m_copilotController.getY(Hand.kRight)) > 0.1)
-            {
+            { 
               hoodAngle += m_copilotController.getY(Hand.kRight);
             }
   
@@ -446,6 +444,7 @@ public class Robot extends TimedRobot {
     }
 
       if (m_copilotController.getYButton() && prevYPos == false){
+        ahrs.zeroYaw();
         try{
         System.out.println("isRecording = " + isRecording);
         autoWriter = new PrintStream(autoPath);
