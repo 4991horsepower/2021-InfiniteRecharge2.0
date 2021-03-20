@@ -34,7 +34,8 @@ import java.util.Scanner;
 //import java.io.FileInputStream;
 //import java.io.InputStreamReader;
 import java.util.Locale;
-
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
  * This is a demo program showing the use of the RobotDrive class, specifically
@@ -122,7 +123,7 @@ public class Robot extends TimedRobot {
   private double hoodAngle = 85;
 
   private boolean isRecording = false;
-  private String autoPath = "/home/lvuser/barrelRacingPath.txt";
+  //private String autoPath = "/home/lvuser/bouncePath.txt"; //"/home/lvuser/barrelRacingPath.txt";
   private double autoTime;
 
   private double maxSpeed = 1000;
@@ -189,13 +190,18 @@ public class Robot extends TimedRobot {
     m_frontLeft.config_kF(0, 1023.0/maxSpeed);
 		m_frontLeft.config_kP(0, 2.0);
 		m_frontLeft.config_kI(0, 0.0);
-    m_frontLeft.config_kD(0, 20);
+    m_frontLeft.config_kD(0, 10);
+    m_frontLeft.configClosedloopRamp(0.2);
+
     
     m_rearRight.config_kF(0, 1023.0/maxSpeed);
 		m_rearRight.config_kP(0, 2.0);
 		m_rearRight.config_kI(0, 0.0);
-		m_rearRight.config_kD(0, 20);
-
+    m_rearRight.config_kD(0, 10);
+    m_rearRight.configClosedloopRamp(0.2);
+    
+    String [] autoModes = {"bouncePath", "barrelRacingPath", "slalomPath", "scratchpad"};
+    SmartDashboard.putStringArray("Auto List", autoModes);
   }
   
 
@@ -210,7 +216,10 @@ public class Robot extends TimedRobot {
 
     try{
         System.out.println("isRecording = " + isRecording);
-        autoScan = new Scanner(new File(autoPath));
+        
+        String filePath = "/home/lvuser/" + SmartDashboard.getString("Auto Selector", "scratchpad") + ".txt";
+
+        autoScan = new Scanner(new File(filePath));
         autoScan.useLocale(Locale.US);
     }
     catch(FileNotFoundException e)
@@ -320,6 +329,7 @@ public class Robot extends TimedRobot {
     double left_right = m_driverController.getX(Hand.kLeft);
     
 
+    front_back = front_back > 0 ? Math.pow(Math.abs(front_back), 3) : -Math.pow(Math.abs(front_back), 3);
     left_right = left_right > 0 ? 0.5*Math.pow(Math.abs(left_right), 3) : -0.5*Math.pow(Math.abs(left_right), 3);
     
 
@@ -447,7 +457,10 @@ public class Robot extends TimedRobot {
         ahrs.zeroYaw();
         try{
         System.out.println("isRecording = " + isRecording);
-        autoWriter = new PrintStream(autoPath);
+        
+        String filePath = "/home/lvuser/" + SmartDashboard.getString("Auto Selector", "scratchpad") + ".txt";
+
+        autoWriter = new PrintStream(filePath);
         }
         catch(FileNotFoundException e)
         {
